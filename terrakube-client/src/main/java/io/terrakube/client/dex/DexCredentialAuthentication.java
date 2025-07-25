@@ -9,6 +9,7 @@ import java.util.Date;
 import javax.crypto.SecretKey;
 
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import lombok.NonNull;
@@ -60,6 +61,7 @@ public class DexCredentialAuthentication implements Authenticator, Interceptor {
             SecretKey key = Keys.hmacShaKeyFor(Decoders.BASE64URL.decode(this.secretKey));
 
             newToken = Jwts.builder()
+                    .setHeaderParam("typ", "JWT")
                     .issuer(DexCredentialAuthentication.ISSUER)
                     .subject(DexCredentialAuthentication.SUBJECT)
                     .audience().add(DexCredentialAuthentication.ISSUER)
@@ -69,7 +71,7 @@ public class DexCredentialAuthentication implements Authenticator, Interceptor {
                     .claim("name", DexCredentialAuthentication.NAME)
                     .issuedAt(Date.from(Instant.now()))
                     .expiration(Date.from(Instant.now().plus(30, ChronoUnit.DAYS)))
-                    .signWith(key)
+                    .signWith(key, SignatureAlgorithm.HS256)
                     .compact();
 
         } else {
