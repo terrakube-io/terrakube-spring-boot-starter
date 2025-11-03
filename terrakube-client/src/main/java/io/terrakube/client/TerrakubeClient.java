@@ -8,6 +8,8 @@ import io.terrakube.client.model.organization.job.Job;
 import io.terrakube.client.model.organization.job.JobRequest;
 import io.terrakube.client.model.organization.job.step.Step;
 import io.terrakube.client.model.organization.job.step.StepRequest;
+import io.terrakube.client.model.organization.job.Log;
+import io.terrakube.client.model.organization.job.LogsRequest;
 import io.terrakube.client.model.organization.module.Module;
 import io.terrakube.client.model.organization.module.ModuleRequest;
 import io.terrakube.client.model.organization.module.version.ModuleVersion;
@@ -109,4 +111,12 @@ public interface TerrakubeClient {
 
     @RequestLine("GET /api/v1/organization/{organizationId}/template/{templateId}")
     Response<Template> getTemplateById(@Param("organizationId") String organizationId, @Param("templateId") String templateId);
+
+    @RequestLine("POST /logs/{jobId}/setup-consumer-groups")
+    @Headers("Content-Type: application/vnd.api+json")
+    void setupConsumerGroups(@Param("jobId") String jobId);
+
+    @RequestLine("POST /logs")
+    @Headers("Content-Type: application/vnd.api+json")
+    void appendLogs(LogsRequest logRequests);
 }
