@@ -1,8 +1,9 @@
 package io.terrakube.client.spring.autoconfigure;
 
 import feign.Feign;
-import feign.Logger;
-import feign.okhttp.OkHttpClient;
+import feign.http2client.Http2Client;
+import feign.jackson.JacksonDecoder;
+import feign.jackson.JacksonEncoder;
 import feign.slf4j.Slf4jLogger;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import io.terrakube.client.TerrakubeClient;
@@ -10,8 +11,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import feign.gson.GsonDecoder;
-import feign.gson.GsonEncoder;
 import io.terrakube.client.dex.DexCredentialAuthentication;
 
 @AutoConfiguration
@@ -32,23 +31,18 @@ public class RestClientAutoConfiguration {
                     restClientProperties.getCredentialType()
             );
 
-            okhttp3.OkHttpClient customHttpClient = new okhttp3.OkHttpClient.Builder()
-                    .authenticator(clientCredentialAuthentication)
-                    .addInterceptor(clientCredentialAuthentication)
-                    .build();
-
             restClient = Feign.builder()
-                    .encoder(new GsonEncoder())
-                    .decoder(new GsonDecoder())
-                    .client(new OkHttpClient(customHttpClient))
+                    .encoder(new JacksonEncoder())
+                    .decoder(new JacksonDecoder())
+                    .client(new Http2Client())
+                    .requestInterceptor(clientCredentialAuthentication)
                     .target(TerrakubeClient.class, restClientProperties.getUrl());
         }else{
             restClient = Feign.builder()
-                    .encoder(new GsonEncoder())
-                    .decoder(new GsonDecoder())
+                    .encoder(new JacksonEncoder())
+                    .decoder(new JacksonDecoder())
                     .logger(new Slf4jLogger())
-                    .client(new OkHttpClient())
-                    .logLevel(Logger.Level.FULL)
+                    .client(new Http2Client())
                     .target(TerrakubeClient.class, restClientProperties.getUrl());
         }
 
