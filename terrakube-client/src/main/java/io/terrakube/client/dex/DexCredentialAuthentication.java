@@ -1,56 +1,33 @@
 package io.terrakube.client.dex;
 
-import java.io.IOException;
-import java.net.HttpURLConnection;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
 
 import javax.crypto.SecretKey;
 
+import feign.RequestInterceptor;
+import feign.RequestTemplate;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
-import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.Authenticator;
-import okhttp3.Interceptor;
-import okhttp3.Request;
-import okhttp3.Response;
-import okhttp3.Route;
 
 @Slf4j
-public class DexCredentialAuthentication implements Authenticator, Interceptor {
+public class DexCredentialAuthentication implements RequestInterceptor {
 
     private static final String ISSUER = "TerrakubeInternal";
     private static final String SUBJECT = "TerrakubeInternal (TOKEN)";
     private static final String EMAIL = "no-reply@terrakube.io";
     private static final String NAME = "TerrakubeInternal Client";
 
-    private String secretKey;
-    private String accessToken = "";
-    private DexCredentialType dexCredentialType;
+    private final String secretKey;
+    private final DexCredentialType dexCredentialType;
 
     public DexCredentialAuthentication(String secretKey, DexCredentialType dexCredentialType) {
         this.secretKey = secretKey;
         this.dexCredentialType = dexCredentialType;
-    }
-
-    @Override
-    public Request authenticate(Route route, Response response) {
-        log.info("Authentication error {}", response.code());
-        synchronized (this) {
-            this.accessToken = generateAccessToken();
-        }
-        return newRequestWithAccessToken(response.request(), this.accessToken);
-    }
-
-    @NonNull
-    private Request newRequestWithAccessToken(@NonNull Request request, String accessToken) {
-        return request.newBuilder()
-                .header("Authorization", "Bearer " + accessToken)
-                .build();
     }
 
     private String generateAccessToken() {
@@ -61,7 +38,7 @@ public class DexCredentialAuthentication implements Authenticator, Interceptor {
             SecretKey key = Keys.hmacShaKeyFor(Decoders.BASE64URL.decode(this.secretKey));
 
             newToken = Jwts.builder()
-                    .setHeaderParam("typ", "JWT")
+                    .header().add("typ", "JWT").and()
                     .issuer(DexCredentialAuthentication.ISSUER)
                     .subject(DexCredentialAuthentication.SUBJECT)
                     .audience().add(DexCredentialAuthentication.ISSUER)
@@ -82,17 +59,7 @@ public class DexCredentialAuthentication implements Authenticator, Interceptor {
     }
 
     @Override
-    public Response intercept(Interceptor.Chain chain) throws IOException {
-        Request request = newRequestWithAccessToken(chain.request(), this.accessToken);
-        Response response = chain.proceed(request);
-
-        if (response.code() == HttpURLConnection.HTTP_UNAUTHORIZED
-                || response.code() == HttpURLConnection.HTTP_FORBIDDEN) {
-            synchronized (this) {
-                return chain.proceed(newRequestWithAccessToken(request, generateAccessToken()));
-            }
-        }
-
-        return response;
+    public void apply(RequestTemplate requestTemplate) {
+        requestTemplate.header("Authorization", "Bearer " + generateAccessToken());
     }
 }

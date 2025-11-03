@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.5.0</version>
+		<version>3.5.7</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>io.terrakube.client</groupId>
@@ -21,7 +21,7 @@
 		<maven-javadoc-plugin.version>3.6.2</maven-javadoc-plugin.version>
 		<maven-gpg-plugin.version>3.1.0</maven-gpg-plugin.version>
 		<feign.version>13.2.1</feign.version>
-		<revision>1.0.0</revision>
+		<revision>1.2.0</revision>
 		<maven.deploy.skip>false</maven.deploy.skip>
 		<lombok.version>1.18.30</lombok.version>
 	</properties>
@@ -148,7 +148,7 @@
 		</dependency>
 		<dependency>
 			<groupId>io.github.openfeign</groupId>
-			<artifactId>feign-gson</artifactId>
+			<artifactId>feign-jackson</artifactId>
 			<version>${feign.version}</version>
 		</dependency>
 		<dependency>
@@ -158,7 +158,7 @@
 		</dependency>
 		<dependency>
 			<groupId>io.github.openfeign</groupId>
-			<artifactId>feign-okhttp</artifactId>
+			<artifactId>feign-java11</artifactId>
 			<version>${feign.version}</version>
 		</dependency>
 		<dependency>

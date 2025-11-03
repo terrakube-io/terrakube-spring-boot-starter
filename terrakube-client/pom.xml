@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.5.0</version>
+		<version>3.5.7</version>
 		<relativePath/>
 	</parent>
 	<groupId>io.terrakube.client</groupId>
@@ -20,12 +20,12 @@
 		<maven-source-plugin.version>3.3.0</maven-source-plugin.version>
 		<maven-javadoc-plugin.version>3.6.2</maven-javadoc-plugin.version>
 		<maven-gpg-plugin.version>3.1.0</maven-gpg-plugin.version>
-		<revision>1.0.0</revision>
-		<feign.version>13.2.1</feign.version>
+		<revision>1.2.0</revision>
+		<feign.version>13.6</feign.version>
 		<feign-form.version>3.8.0</feign-form.version>
 		<maven.deploy.skip>false</maven.deploy.skip>
 		<lombok.version>1.18.30</lombok.version>
-		<jjwt.version>0.12.5</jjwt.version>
+		<jjwt.version>0.13.0</jjwt.version>
 	</properties>
 
 	<licenses>
@@ -148,16 +148,21 @@
 			<artifactId>feign-form</artifactId>
 			<version>${feign-form.version}</version>
 		</dependency>
+        <dependency>
+            <groupId>io.github.openfeign</groupId>
+            <artifactId>feign-java11</artifactId>
+            <version>${feign.version}</version>
+        </dependency>
 		<dependency>
 			<groupId>io.github.openfeign</groupId>
-			<artifactId>feign-okhttp</artifactId>
+			<artifactId>feign-jackson</artifactId>
 			<version>${feign.version}</version>
 		</dependency>
-		<dependency>
-			<groupId>io.github.openfeign</groupId>
-			<artifactId>feign-gson</artifactId>
-			<version>${feign.version}</version>
-		</dependency>
+        <dependency>
+            <groupId>io.github.openfeign</groupId>
+            <artifactId>feign-slf4j</artifactId>
+            <version>${feign.version}</version>
+        </dependency>
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
