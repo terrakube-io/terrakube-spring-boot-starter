@@ -24,7 +24,7 @@
 		<feign.version>13.6</feign.version>
 		<feign-form.version>3.8.0</feign-form.version>
 		<maven.deploy.skip>false</maven.deploy.skip>
-		<lombok.version>1.18.30</lombok.version>
+		<lombok.version>1.18.42</lombok.version>
 		<jjwt.version>0.13.0</jjwt.version>
 	</properties>
 
