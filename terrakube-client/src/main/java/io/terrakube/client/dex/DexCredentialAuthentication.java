@@ -31,12 +31,12 @@ public class DexCredentialAuthentication implements RequestInterceptor {
     }
 
     private String generateAccessToken() {
-        log.error("Generate Dex Authentication Private Token");
+        log.debug("Generate Dex Authentication Private Token");
         String newToken = "";
 
         if (this.dexCredentialType.equals(DexCredentialType.INTERNAL)) {
             SecretKey key = Keys.hmacShaKeyFor(Decoders.BASE64URL.decode(this.secretKey));
-
+            log.debug("Using secret key:");
             newToken = Jwts.builder()
                     .header().add("typ", "JWT").and()
                     .issuer(DexCredentialAuthentication.ISSUER)
@@ -52,6 +52,7 @@ public class DexCredentialAuthentication implements RequestInterceptor {
                     .compact();
 
         } else {
+            log.debug("Using pat:");
             newToken = this.secretKey;
         }
 
