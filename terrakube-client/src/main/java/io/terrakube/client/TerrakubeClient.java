@@ -7,6 +7,7 @@ import io.terrakube.client.model.graphql.GraphQLRequest;
 import io.terrakube.client.model.graphql.GraphQLResponse;
 import io.terrakube.client.model.graphql.queries.search.module.SearchOrganizationModuleResponse;
 import io.terrakube.client.model.graphql.queries.search.organization.SearchOrganizationResponse;
+import io.terrakube.client.model.graphql.queries.search.provider.SearchOrganizationProviderResponse;
 import io.terrakube.client.model.organization.Organization;
 import io.terrakube.client.model.organization.job.Job;
 import io.terrakube.client.model.organization.job.JobRequest;
@@ -130,4 +131,8 @@ public interface TerrakubeClient {
     @RequestLine("POST /graphql/api/v1")
     @Headers("Content-Type: application/json")
     GraphQLResponse<SearchOrganizationModuleResponse> searchOrganizationModules(GraphQLRequest request);
+
+    @RequestLine("POST /graphql/api/v1")
+    @Headers("Content-Type: application/json")
+    GraphQLResponse<SearchOrganizationProviderResponse> searchOrganizationProviders(GraphQLRequest request);
 }
