@@ -26,6 +26,7 @@ import io.terrakube.client.model.organization.vcs.github_app_token.GitHubAppToke
 import io.terrakube.client.model.organization.workspace.Workspace;
 import io.terrakube.client.model.organization.workspace.history.HistoryRequest;
 import io.terrakube.client.model.organization.workspace.variable.Variable;
+import io.terrakube.client.model.refresh.RefreshTokenRequest;
 import io.terrakube.client.model.response.Response;
 import io.terrakube.client.model.response.ResponseWithInclude;
 
@@ -135,4 +136,8 @@ public interface TerrakubeClient {
     @RequestLine("POST /graphql/api/v1")
     @Headers("Content-Type: application/json")
     GraphQLResponse<SearchOrganizationProviderResponse> searchOrganizationProviders(GraphQLRequest request);
+
+    @RequestLine("POST /refresh-token/v1/vcs")
+    @Headers("Content-Type: application/json")
+    GraphQLResponse<SearchOrganizationProviderResponse> refreshToken(RefreshTokenRequest request);
 }
