@@ -137,7 +137,7 @@ public interface TerrakubeClient {
     @Headers("Content-Type: application/json")
     GraphQLResponse<SearchOrganizationProviderResponse> searchOrganizationProviders(GraphQLRequest request);
 
-    @RequestLine("POST /refresh-token/v1/vcs")
+    @RequestLine("POST /refresh-token/v1/vcs/{vcsId}")
     @Headers("Content-Type: application/json")
-    GraphQLResponse<SearchOrganizationProviderResponse> refreshToken(RefreshTokenRequest request);
+    void refreshToken(@Param("vcsId") String vcsId, RefreshTokenRequest request);
 }
