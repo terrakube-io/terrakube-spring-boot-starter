@@ -8,6 +8,7 @@ import lombok.Setter;
 public class JobAttributes {
     private String output;
     private String status;
+    private String overrideSource;
     private String terraformPlan;
     private String tcl;
     private boolean planChanges;
