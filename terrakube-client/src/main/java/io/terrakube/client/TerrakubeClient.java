@@ -3,6 +3,8 @@ package io.terrakube.client;
 import feign.Headers;
 import feign.Param;
 import feign.RequestLine;
+import io.terrakube.client.model.federated.Federated;
+import io.terrakube.client.model.federated.claim.FederatedClaim;
 import io.terrakube.client.model.graphql.GraphQLRequest;
 import io.terrakube.client.model.graphql.GraphQLResponse;
 import io.terrakube.client.model.graphql.queries.search.module.SearchOrganizationModuleResponse;
@@ -140,4 +142,25 @@ public interface TerrakubeClient {
     @RequestLine("POST /refresh-token/v1/vcs/{vcsId}")
     @Headers("Content-Type: application/json")
     void refreshToken(@Param("vcsId") String vcsId, RefreshTokenRequest request);
+
+    @RequestLine("GET /api/v1/federated")
+    Response<List<Federated>> getAllFederated();
+
+    @RequestLine("GET /api/v1/federated/{federatedId}")
+    Response<Federated> getFederatedById(@Param("federatedId") String federatedId);
+
+    @RequestLine("GET /api/v1/federated/{federatedId}?include=claims")
+    ResponseWithInclude<Federated, FederatedClaim> getFederatedByIdWithClaims(@Param("federatedId") String federatedId);
+
+    @RequestLine("GET /api/v1/federated?filter[federated]=issuerUrl=={issuerUrl};audience=={audience}")
+    Response<List<Federated>> getFederatedByIssuerUrlAndAudience(@Param("issuerUrl") String issuerUrl, @Param("audience") String audience);
+
+    @RequestLine("GET /api/v1/federated?filter[federated]=issuerUrl=={issuerUrl};audience=={audience}&include=claims")
+    ResponseWithInclude<List<Federated>, FederatedClaim> getFederatedByIssuerUrlAndAudienceWithClaims(@Param("issuerUrl") String issuerUrl, @Param("audience") String audience);
+
+    @RequestLine("GET /api/v1/federated/{federatedId}/claims")
+    Response<List<FederatedClaim>> getClaimsByFederatedId(@Param("federatedId") String federatedId);
+
+    @RequestLine("GET /api/v1/federated/{federatedId}/claims/{claimId}")
+    Response<FederatedClaim> getClaimById(@Param("federatedId") String federatedId, @Param("claimId") String claimId);
 }
