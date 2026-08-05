@@ -6,6 +6,8 @@ import feign.Feign;
 import feign.http2client.Http2Client;
 import feign.jackson.JacksonDecoder;
 import feign.jackson.JacksonEncoder;
+import io.terrakube.client.model.federated.Federated;
+import io.terrakube.client.model.federated.claim.FederatedClaim;
 import io.terrakube.client.model.graphql.GraphQLRequest;
 import io.terrakube.client.model.graphql.GraphQLResponse;
 import io.terrakube.client.model.graphql.queries.search.module.SearchOrganizationModuleResponse;
@@ -686,5 +688,135 @@ class TerrakubeClientTest {
 
         verify(postRequestedFor(
                 urlPathEqualTo("/refresh-token/v1/vcs/7163c5b1-0cd7-4820-9359-786aa427588d")));
+    }
+
+    // ──────────────────────────────── Federated / FederatedClaim ────────────────────────────────
+
+    @Test
+    void getAllFederated_returnsFederatedList() {
+        stubFor(get(urlPathEqualTo("/api/v1/federated"))
+                .willReturn(okJson(
+                        "{\"data\":[{\"id\":\"fed-1\",\"type\":\"federated\","
+                        + "\"attributes\":{\"name\":\"github-oidc\",\"issuerUrl\":\"https://token.actions.githubusercontent.com\",\"audience\":\"terrakube\"}}]}"
+                )));
+
+        Response<List<Federated>> response = client.getAllFederated();
+
+        assertNotNull(response.getData());
+        assertEquals(1, response.getData().size());
+        Federated fed = response.getData().get(0);
+        assertEquals("fed-1", fed.getId());
+        assertEquals("federated", fed.getType());
+        assertEquals("github-oidc", fed.getAttributes().getName());
+        assertEquals("https://token.actions.githubusercontent.com", fed.getAttributes().getIssuerUrl());
+        assertEquals("terrakube", fed.getAttributes().getAudience());
+    }
+
+    @Test
+    void getFederatedById_returnsSingleFederated() {
+        stubFor(get(urlPathEqualTo("/api/v1/federated/fed-1"))
+                .willReturn(okJson(
+                        "{\"data\":{\"id\":\"fed-1\",\"type\":\"federated\","
+                        + "\"attributes\":{\"name\":\"github-oidc\",\"issuerUrl\":\"https://token.actions.githubusercontent.com\",\"audience\":\"terrakube\"}}}"
+                )));
+
+        Response<Federated> response = client.getFederatedById("fed-1");
+
+        assertNotNull(response.getData());
+        assertEquals("fed-1", response.getData().getId());
+        assertEquals("github-oidc", response.getData().getAttributes().getName());
+    }
+
+    @Test
+    void getFederatedByIdWithClaims_includesClaims() {
+        stubFor(get(urlPathEqualTo("/api/v1/federated/fed-1"))
+                .willReturn(okJson(
+                        "{\"data\":{\"id\":\"fed-1\",\"type\":\"federated\","
+                        + "\"attributes\":{\"name\":\"github-oidc\"}},"
+                        + "\"included\":[{\"id\":\"claim-1\",\"type\":\"federated_claim\","
+                        + "\"attributes\":{\"claimKey\":\"sub\",\"claimValue\":\"repo:octocat/hello-world:ref:refs/heads/main\"}}]}"
+                )));
+
+        ResponseWithInclude<Federated, FederatedClaim> response =
+                client.getFederatedByIdWithClaims("fed-1");
+
+        assertNotNull(response.getData());
+        assertEquals("fed-1", response.getData().getId());
+        assertNotNull(response.getIncluded());
+        assertEquals(1, response.getIncluded().size());
+        FederatedClaim claim = response.getIncluded().get(0);
+        assertEquals("claim-1", claim.getId());
+        assertEquals("sub", claim.getAttributes().getClaimKey());
+        assertEquals("repo:octocat/hello-world:ref:refs/heads/main", claim.getAttributes().getClaimValue());
+    }
+
+    @Test
+    void getFederatedByIssuerUrlAndAudience_returnsMatchingFederated() {
+        stubFor(get(urlPathEqualTo("/api/v1/federated"))
+                .willReturn(okJson(
+                        "{\"data\":[{\"id\":\"fed-1\",\"type\":\"federated\","
+                        + "\"attributes\":{\"name\":\"github-oidc\",\"issuerUrl\":\"https://token.actions.githubusercontent.com\",\"audience\":\"terrakube\"}}]}"
+                )));
+
+        Response<List<Federated>> response = client.getFederatedByIssuerUrlAndAudience(
+                "https://token.actions.githubusercontent.com", "terrakube");
+
+        assertNotNull(response.getData());
+        assertEquals(1, response.getData().size());
+        assertEquals("fed-1", response.getData().get(0).getId());
+    }
+
+    @Test
+    void getFederatedByIssuerUrlAndAudienceWithClaims_returnsMatchingFederatedWithIncludedClaims() {
+        stubFor(get(urlPathEqualTo("/api/v1/federated"))
+                .willReturn(okJson(
+                        "{\"data\":[{\"id\":\"fed-1\",\"type\":\"federated\","
+                        + "\"attributes\":{\"name\":\"github-oidc\"}}],"
+                        + "\"included\":[{\"id\":\"claim-1\",\"type\":\"federated_claim\","
+                        + "\"attributes\":{\"claimKey\":\"iss\",\"claimValue\":\"https://token.actions.githubusercontent.com\"}}]}"
+                )));
+
+        ResponseWithInclude<List<Federated>, FederatedClaim> response =
+                client.getFederatedByIssuerUrlAndAudienceWithClaims(
+                        "https://token.actions.githubusercontent.com", "terrakube");
+
+        assertNotNull(response.getData());
+        assertEquals(1, response.getData().size());
+        assertNotNull(response.getIncluded());
+        assertEquals(1, response.getIncluded().size());
+        assertEquals("claim-1", response.getIncluded().get(0).getId());
+    }
+
+    @Test
+    void getClaimsByFederatedId_returnsClaimsList() {
+        stubFor(get(urlPathEqualTo("/api/v1/federated/fed-1/claims"))
+                .willReturn(okJson(
+                        "{\"data\":[{\"id\":\"claim-1\",\"type\":\"federated_claim\","
+                        + "\"attributes\":{\"claimKey\":\"aud\",\"claimValue\":\"api://terrakube\"}}]}"
+                )));
+
+        Response<List<FederatedClaim>> response = client.getClaimsByFederatedId("fed-1");
+
+        assertNotNull(response.getData());
+        assertEquals(1, response.getData().size());
+        assertEquals("claim-1", response.getData().get(0).getId());
+        assertEquals("aud", response.getData().get(0).getAttributes().getClaimKey());
+        assertEquals("api://terrakube", response.getData().get(0).getAttributes().getClaimValue());
+    }
+
+    @Test
+    void getClaimById_returnsSingleClaim() {
+        stubFor(get(urlPathEqualTo("/api/v1/federated/fed-1/claims/claim-1"))
+                .willReturn(okJson(
+                        "{\"data\":{\"id\":\"claim-1\",\"type\":\"federated_claim\","
+                        + "\"attributes\":{\"claimKey\":\"repository\",\"claimValue\":\"octocat/hello-world\"}}}"
+                )));
+
+        Response<FederatedClaim> response = client.getClaimById("fed-1", "claim-1");
+
+        assertNotNull(response.getData());
+        assertEquals("claim-1", response.getData().getId());
+        assertEquals("repository", response.getData().getAttributes().getClaimKey());
+        assertEquals("octocat/hello-world", response.getData().getAttributes().getClaimValue());
     }
 }
