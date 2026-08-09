@@ -155,7 +155,13 @@ class TerrakubeClientTest {
         stubFor(get(urlPathEqualTo("/api/v1/organization/org-1/workspace/ws-1"))
                 .willReturn(okJson(
                         "{\"data\":{\"id\":\"ws-1\",\"type\":\"workspace\","
-                        + "\"attributes\":{\"name\":\"my-workspace\"}}}"
+                        + "\"attributes\":{\"name\":\"my-workspace\",\"description\":\"Test Workspace\","
+                        + "\"folder\":\"/infra\",\"lastJobStatus\":\"Completed\",\"lastJobDate\":\"2026-08-09T10:00:00Z\","
+                        + "\"locked\":true,\"deleted\":false,\"allowRemoteApply\":true,\"globalRemoteState\":false,"
+                        + "\"sharedIds\":\"id1,id2\",\"defaultTemplate\":\"plan-apply\",\"lockDescription\":\"Locked for maintenance\","
+                        + "\"iacType\":\"terraform\",\"moduleSshKey\":\"ssh-key-id\",\"terraformVersion\":\"1.5.7\","
+                        + "\"executionMode\":\"remote\",\"createdBy\":\"user1\",\"createdDate\":\"2026-08-01T00:00:00Z\","
+                        + "\"updatedBy\":\"user2\",\"updatedDate\":\"2026-08-09T12:00:00Z\"}}}"
                 )));
 
         Response<Workspace> response = client.getWorkspaceById("org-1", "ws-1");
@@ -163,6 +169,25 @@ class TerrakubeClientTest {
         assertNotNull(response.getData());
         assertEquals("ws-1", response.getData().getId());
         assertEquals("my-workspace", response.getData().getAttributes().getName());
+        assertEquals("Test Workspace", response.getData().getAttributes().getDescription());
+        assertEquals("/infra", response.getData().getAttributes().getFolder());
+        assertEquals("Completed", response.getData().getAttributes().getLastJobStatus());
+        assertEquals("2026-08-09T10:00:00Z", response.getData().getAttributes().getLastJobDate());
+        assertTrue(response.getData().getAttributes().isLocked());
+        assertFalse(response.getData().getAttributes().isDeleted());
+        assertTrue(response.getData().getAttributes().isAllowRemoteApply());
+        assertFalse(response.getData().getAttributes().isGlobalRemoteState());
+        assertEquals("id1,id2", response.getData().getAttributes().getSharedIds());
+        assertEquals("plan-apply", response.getData().getAttributes().getDefaultTemplate());
+        assertEquals("Locked for maintenance", response.getData().getAttributes().getLockDescription());
+        assertEquals("terraform", response.getData().getAttributes().getIacType());
+        assertEquals("ssh-key-id", response.getData().getAttributes().getModuleSshKey());
+        assertEquals("1.5.7", response.getData().getAttributes().getTerraformVersion());
+        assertEquals("remote", response.getData().getAttributes().getExecutionMode());
+        assertEquals("user1", response.getData().getAttributes().getCreatedBy());
+        assertEquals("2026-08-01T00:00:00Z", response.getData().getAttributes().getCreatedDate());
+        assertEquals("user2", response.getData().getAttributes().getUpdatedBy());
+        assertEquals("2026-08-09T12:00:00Z", response.getData().getAttributes().getUpdatedDate());
     }
 
     @Test
