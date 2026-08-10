@@ -7,4 +7,5 @@ public class VersionNode {
     private String id;
     private String version;
     private String commit;
+    private String gitTag;
 }
