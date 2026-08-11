@@ -10,6 +10,8 @@ public class JobAttributes {
     private String status;
     private String overrideSource;
     private String terraformPlan;
+    private String terraformPlanArtifacts;
+    private String terraformPlanArtifactsChecksum;
     private String tcl;
     private boolean planChanges;
     private String approvalTeam;
