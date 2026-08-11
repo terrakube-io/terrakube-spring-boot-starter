@@ -8,4 +8,5 @@ import lombok.Setter;
 public class ModuleVersionAttributes {
     private String version;
     private String commit;
+    private String gitTag;
 }
