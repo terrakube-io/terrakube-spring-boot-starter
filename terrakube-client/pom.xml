@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.5.14</version>
+		<version>4.1.1</version>
 		<relativePath/>
 	</parent>
 	<groupId>io.terrakube.client</groupId>
@@ -182,9 +182,9 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>org.wiremock</groupId>
-			<artifactId>wiremock-jetty12</artifactId>
-			<version>3.9.1</version>
+			<groupId>org.wiremock.integrations</groupId>
+			<artifactId>wiremock-spring-boot</artifactId>
+			<version>4.2.2</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
