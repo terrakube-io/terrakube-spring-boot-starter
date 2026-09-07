@@ -23,7 +23,7 @@
 		<feign.version>13.14</feign.version>
 		<revision>1.9.0</revision>
 		<maven.deploy.skip>false</maven.deploy.skip>
-		<lombok.version>1.18.46</lombok.version>
+		<lombok.version>1.18.48</lombok.version>
 	</properties>
 
 	<licenses>
