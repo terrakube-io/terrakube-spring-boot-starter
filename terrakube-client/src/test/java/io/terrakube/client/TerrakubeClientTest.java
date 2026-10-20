@@ -318,6 +318,66 @@ class TerrakubeClientTest {
     }
 
     @Test
+    void getJobById_readsThePlanArtifactsRecordedByThePlanStep() {
+        stubFor(get(urlPathEqualTo("/api/v1/organization/org-1/job/job-1"))
+                .willReturn(okJson(
+                        "{\"data\":{\"id\":\"job-1\",\"type\":\"job\","
+                        + "\"attributes\":{\"status\":\"pending\","
+                        + "\"terraformPlanArtifacts\":\"https://bucket.example/plan-artifacts/o/w/1/s/plan-artifacts.tar.gz\","
+                        + "\"terraformPlanArtifactsChecksum\":\"abc123\"}}}"
+                )));
+
+        ResponseWithInclude<Job, Step> response = client.getJobById("org-1", "job-1");
+
+        assertEquals("https://bucket.example/plan-artifacts/o/w/1/s/plan-artifacts.tar.gz",
+                response.getData().getAttributes().getTerraformPlanArtifacts());
+        assertEquals("abc123", response.getData().getAttributes().getTerraformPlanArtifactsChecksum());
+    }
+
+    @Test
+    void updateJob_sendsThePlanArtifactsWhenSet() {
+        stubFor(patch(urlPathEqualTo("/api/v1/organization/org-1/job/job-1")).willReturn(noContent()));
+
+        Job job = new Job();
+        job.setId("job-1");
+        job.setType("job");
+        JobAttributes attrs = new JobAttributes();
+        attrs.setStatus("pending");
+        attrs.setTerraformPlanArtifacts("s3://location");
+        attrs.setTerraformPlanArtifactsChecksum("abc123");
+        job.setAttributes(attrs);
+        JobRequest jobRequest = new JobRequest();
+        jobRequest.setData(job);
+
+        client.updateJob(jobRequest, "org-1", "job-1");
+
+        verify(patchRequestedFor(urlPathEqualTo("/api/v1/organization/org-1/job/job-1"))
+                .withRequestBody(matchingJsonPath("$.data.attributes.terraformPlanArtifacts", equalTo("s3://location")))
+                .withRequestBody(matchingJsonPath("$.data.attributes.terraformPlanArtifactsChecksum", equalTo("abc123"))));
+    }
+
+    @Test
+    void updateJob_leavesTheAttributesOutWhenTheyAreNotSet() {
+        // An API from before the plan-artifacts fields existed rejects an unknown attribute, so a
+        // job update that does not use them must not mention them at all.
+        stubFor(patch(urlPathEqualTo("/api/v1/organization/org-1/job/job-1")).willReturn(noContent()));
+
+        Job job = new Job();
+        job.setId("job-1");
+        job.setType("job");
+        JobAttributes attrs = new JobAttributes();
+        attrs.setStatus("completed");
+        job.setAttributes(attrs);
+        JobRequest jobRequest = new JobRequest();
+        jobRequest.setData(job);
+
+        client.updateJob(jobRequest, "org-1", "job-1");
+
+        verify(patchRequestedFor(urlPathEqualTo("/api/v1/organization/org-1/job/job-1"))
+                .withRequestBody(notMatching(".*terraformPlanArtifacts.*")));
+    }
+
+    @Test
     void createStep_sendsPostToStepEndpoint() {
         stubFor(post(urlPathEqualTo("/api/v1/organization/org-1/job/job-1/step"))
                 .willReturn(created()));
