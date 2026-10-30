@@ -17,6 +17,8 @@ public class WorkspaceAttributes {
     private boolean deleted;
     private boolean allowRemoteApply;
     private boolean globalRemoteState;
+    // Set by Terrakube 2.34.0 and later. Older versions do not send it, which reads as false, their behaviour.
+    private boolean restrictApplyToConfiguredBranch;
     private String sharedIds;
     private String defaultTemplate;
     private String lockDescription;
