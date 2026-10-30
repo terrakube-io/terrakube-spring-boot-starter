@@ -158,6 +158,7 @@ class TerrakubeClientTest {
                         + "\"attributes\":{\"name\":\"my-workspace\",\"description\":\"Test Workspace\","
                         + "\"folder\":\"/infra\",\"lastJobStatus\":\"Completed\",\"lastJobDate\":\"2026-08-09T10:00:00Z\","
                         + "\"locked\":true,\"deleted\":false,\"allowRemoteApply\":true,\"globalRemoteState\":false,"
+                        + "\"restrictApplyToConfiguredBranch\":true,"
                         + "\"sharedIds\":\"id1,id2\",\"defaultTemplate\":\"plan-apply\",\"lockDescription\":\"Locked for maintenance\","
                         + "\"iacType\":\"terraform\",\"moduleSshKey\":\"ssh-key-id\",\"terraformVersion\":\"1.5.7\","
                         + "\"executionMode\":\"remote\",\"createdBy\":\"user1\",\"createdDate\":\"2026-08-01T00:00:00Z\","
@@ -177,6 +178,7 @@ class TerrakubeClientTest {
         assertFalse(response.getData().getAttributes().isDeleted());
         assertTrue(response.getData().getAttributes().isAllowRemoteApply());
         assertFalse(response.getData().getAttributes().isGlobalRemoteState());
+        assertTrue(response.getData().getAttributes().isRestrictApplyToConfiguredBranch());
         assertEquals("id1,id2", response.getData().getAttributes().getSharedIds());
         assertEquals("plan-apply", response.getData().getAttributes().getDefaultTemplate());
         assertEquals("Locked for maintenance", response.getData().getAttributes().getLockDescription());
@@ -188,6 +190,20 @@ class TerrakubeClientTest {
         assertEquals("2026-08-01T00:00:00Z", response.getData().getAttributes().getCreatedDate());
         assertEquals("user2", response.getData().getAttributes().getUpdatedBy());
         assertEquals("2026-08-09T12:00:00Z", response.getData().getAttributes().getUpdatedDate());
+    }
+
+    @Test
+    void getWorkspaceById_withoutTheBranchRestriction_readsAsNotRestricted() {
+        // Terrakube versions before 2.34.0 do not send the attribute.
+        stubFor(get(urlPathEqualTo("/api/v1/organization/org-1/workspace/ws-1"))
+                .willReturn(okJson(
+                        "{\"data\":{\"id\":\"ws-1\",\"type\":\"workspace\","
+                        + "\"attributes\":{\"name\":\"my-workspace\"}}}"
+                )));
+
+        Response<Workspace> response = client.getWorkspaceById("org-1", "ws-1");
+
+        assertFalse(response.getData().getAttributes().isRestrictApplyToConfiguredBranch());
     }
 
     @Test
