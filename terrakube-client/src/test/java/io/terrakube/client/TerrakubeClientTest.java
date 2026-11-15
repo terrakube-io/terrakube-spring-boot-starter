@@ -28,10 +28,12 @@ import io.terrakube.client.model.organization.module.version.ModuleVersion;
 import io.terrakube.client.model.organization.provider.version.Version;
 import io.terrakube.client.model.organization.provider.version.implementation.Implementation;
 import io.terrakube.client.model.organization.ssh.Ssh;
+import io.terrakube.client.model.organization.team.Team;
 import io.terrakube.client.model.organization.template.Template;
 import io.terrakube.client.model.organization.vcs.Vcs;
 import io.terrakube.client.model.organization.vcs.github_app_token.GitHubAppToken;
 import io.terrakube.client.model.organization.workspace.Workspace;
+import io.terrakube.client.model.organization.workspace.access.Access;
 import io.terrakube.client.model.organization.workspace.history.HistoryRequest;
 import io.terrakube.client.model.organization.workspace.variable.Variable;
 import io.terrakube.client.model.refresh.RefreshTokenRequest;
@@ -903,5 +905,88 @@ class TerrakubeClientTest {
         assertEquals("claim-1", response.getData().getId());
         assertEquals("repository", response.getData().getAttributes().getClaimKey());
         assertEquals("octocat/hello-world", response.getData().getAttributes().getClaimValue());
+    }
+
+    // ──────────────────────────────── Team / Workspace Access / Step ────────────────────────────────
+
+    @Test
+    void getAllTeams_returnsTeamList() {
+        stubFor(get(urlPathEqualTo("/api/v1/organization/org-1/team"))
+                .willReturn(okJson(
+                        "{\"data\":[{\"id\":\"team-1\",\"type\":\"team\","
+                        + "\"attributes\":{\"name\":\"TERRAKUBE_ADMIN\",\"role\":\"admin\","
+                        + "\"manageState\":true,\"manageCollection\":true,\"manageJob\":true,"
+                        + "\"manageWorkspace\":true,\"manageModule\":true,\"manageProvider\":true,"
+                        + "\"manageVcs\":true,\"manageTemplate\":true,\"managePolicies\":true,"
+                        + "\"planJob\":true,\"approveJob\":true,\"destroyJob\":true}}]}"
+                )));
+
+        Response<List<Team>> response = client.getAllTeams("org-1");
+
+        assertNotNull(response);
+        assertNotNull(response.getData());
+        assertEquals(1, response.getData().size());
+        Team team = response.getData().get(0);
+        assertEquals("team-1", team.getId());
+        assertEquals("team", team.getType());
+        assertEquals("TERRAKUBE_ADMIN", team.getAttributes().getName());
+        assertEquals("admin", team.getAttributes().getRole());
+        assertTrue(team.getAttributes().isManageModule());
+        assertTrue(team.getAttributes().isManageWorkspace());
+        assertTrue(team.getAttributes().isDestroyJob());
+    }
+
+    @Test
+    void getWorkspacesWithAccess_returnsWorkspacesAndIncludedAccess() {
+        stubFor(get(urlPathEqualTo("/api/v1/organization/org-1/workspace"))
+                .withQueryParam("include", equalTo("access"))
+                .willReturn(okJson(
+                        "{\"data\":[{\"id\":\"ws-1\",\"type\":\"workspace\","
+                        + "\"attributes\":{\"name\":\"prod\"},"
+                        + "\"relationships\":{\"access\":{\"data\":[{\"id\":\"acc-1\",\"type\":\"access\"}]}}}],"
+                        + "\"included\":[{\"id\":\"acc-1\",\"type\":\"access\","
+                        + "\"attributes\":{\"name\":\"github-pipeline-team\",\"role\":\"plan\","
+                        + "\"manageState\":false,\"manageJob\":true,\"manageWorkspace\":false,"
+                        + "\"planJob\":true,\"approveJob\":false,\"destroyJob\":false}}]}"
+                )));
+
+        ResponseWithInclude<List<Workspace>, Access> response = client.getWorkspacesWithAccess("org-1");
+
+        assertNotNull(response);
+        assertNotNull(response.getData());
+        assertEquals(1, response.getData().size());
+        assertEquals("ws-1", response.getData().get(0).getId());
+        assertNotNull(response.getData().get(0).getRelationships().getAccess());
+        assertEquals(1, response.getData().get(0).getRelationships().getAccess().getData().size());
+
+        assertNotNull(response.getIncluded());
+        assertEquals(1, response.getIncluded().size());
+        Access access = response.getIncluded().get(0);
+        assertEquals("acc-1", access.getId());
+        assertEquals("access", access.getType());
+        assertEquals("github-pipeline-team", access.getAttributes().getName());
+        assertEquals("plan", access.getAttributes().getRole());
+        assertTrue(access.getAttributes().isManageJob());
+        assertTrue(access.getAttributes().isPlanJob());
+        assertFalse(access.getAttributes().isDestroyJob());
+    }
+
+    @Test
+    void getStepById_returnsSingleStep() {
+        stubFor(get(urlPathEqualTo("/api/v1/organization/org-1/job/job-1/step/step-uuid-1"))
+                .willReturn(okJson(
+                        "{\"data\":{\"id\":\"step-uuid-1\",\"type\":\"step\","
+                        + "\"attributes\":{\"stepNumber\":\"1\",\"name\":\"Plan\",\"status\":\"running\",\"output\":\"\"}}}"
+                )));
+
+        Response<Step> response = client.getStepById("org-1", "job-1", "step-uuid-1");
+
+        assertNotNull(response);
+        assertNotNull(response.getData());
+        assertEquals("step-uuid-1", response.getData().getId());
+        assertEquals("step", response.getData().getType());
+        assertEquals("1", response.getData().getAttributes().getStepNumber());
+        assertEquals("Plan", response.getData().getAttributes().getName());
+        assertEquals("running", response.getData().getAttributes().getStatus());
     }
 }

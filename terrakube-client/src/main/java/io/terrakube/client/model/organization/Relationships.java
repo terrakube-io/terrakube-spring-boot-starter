@@ -11,4 +11,5 @@ public class Relationships {
     WorkspaceData workspace;
     ProviderData provider;
     VcsData vcs;
+    TeamData team;
 }
