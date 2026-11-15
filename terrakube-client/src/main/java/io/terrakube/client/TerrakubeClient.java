@@ -23,9 +23,11 @@ import io.terrakube.client.model.organization.provider.version.Version;
 import io.terrakube.client.model.organization.provider.version.implementation.Implementation;
 import io.terrakube.client.model.organization.ssh.Ssh;
 import io.terrakube.client.model.organization.template.Template;
+import io.terrakube.client.model.organization.team.Team;
 import io.terrakube.client.model.organization.vcs.Vcs;
 import io.terrakube.client.model.organization.vcs.github_app_token.GitHubAppToken;
 import io.terrakube.client.model.organization.workspace.Workspace;
+import io.terrakube.client.model.organization.workspace.access.Access;
 import io.terrakube.client.model.organization.workspace.history.HistoryRequest;
 import io.terrakube.client.model.organization.workspace.variable.Variable;
 import io.terrakube.client.model.refresh.RefreshTokenRequest;
@@ -163,4 +165,17 @@ public interface TerrakubeClient {
 
     @RequestLine("GET /api/v1/federated/{federatedId}/claims/{claimId}")
     Response<FederatedClaim> getClaimById(@Param("federatedId") String federatedId, @Param("claimId") String claimId);
+
+    @RequestLine("GET /api/v1/organization/{organizationId}/team")
+    Response<List<Team>> getAllTeams(@Param("organizationId") String organizationId);
+
+    @RequestLine("GET /api/v1/organization/{organizationId}/workspace?include=access")
+    ResponseWithInclude<List<Workspace>, Access> getWorkspacesWithAccess(@Param("organizationId") String organizationId);
+
+    @RequestLine("GET /api/v1/organization/{organizationId}/job/{jobId}/step/{stepId}")
+    Response<Step> getStepById(
+            @Param("organizationId") String organizationId,
+            @Param("jobId") String jobId,
+            @Param("stepId") String stepId
+    );
 }

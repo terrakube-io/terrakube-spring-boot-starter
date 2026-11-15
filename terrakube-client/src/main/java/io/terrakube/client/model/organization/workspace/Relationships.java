@@ -12,4 +12,5 @@ public class Relationships {
     VcsData vcs;
     SshData ssh;
     HistoryData history;
+    AccessData access;
 }
