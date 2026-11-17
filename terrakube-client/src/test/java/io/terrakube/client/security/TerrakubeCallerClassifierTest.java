@@ -25,6 +25,7 @@ class TerrakubeCallerClassifierTest {
     private static final String ORG_ID = "11111111-1111-1111-1111-111111111111";
     private static final String OTHER_ORG_ID = "22222222-2222-2222-2222-222222222222";
     private static final String WS_ID = "33333333-3333-3333-3333-333333333333";
+    private static final String OTHER_WS_ID = "55555555-5555-5555-5555-555555555555";
     private static final String STEP_UUID = "44444444-4444-4444-4444-444444444444";
 
     private TerrakubeClient client;
@@ -205,7 +206,8 @@ class TerrakubeCallerClassifierTest {
 
     @Test
     void workspaceExecutor_apiError_failsClosed() {
-        stubFor(get(urlPathEqualTo("/api/v1/organization/" + ORG_ID + "/job/101/step/" + STEP_UUID))
+        stubFor(get(urlPathEqualTo("/api/v1/organization/" + ORG_ID + "/job/101"))
+                .withQueryParam("include", equalTo("step"))
                 .willReturn(serverError()));
 
         Map<String, Object> claims = Map.of(
@@ -219,6 +221,96 @@ class TerrakubeCallerClassifierTest {
 
         CallerClassification caller = TerrakubeCallerClassifier.classify(claims, OIDC_ISSUER, client);
         assertFalse(TerrakubeCallerClassifier.isAuthorizedForOrganization(caller, ORG_ID, "", client));
+    }
+
+    @Test
+    void workspaceExecutor_terminalJobWorkspaceMismatchAndFallbackStep_areEnforced() {
+        assertEquals(
+                java.util.Set.of("running", "queue", "pending", "waitingApproval", "approved"),
+                TerrakubeCallerClassifier.ACTIVE_STEP_STATUSES
+        );
+
+        Map<String, Object> claims = Map.of(
+                "iss", "TerrakubeInternal",
+                "sub", "TerrakubeInternal (EXECUTOR)",
+                "organizationId", ORG_ID,
+                "workspaceId", WS_ID,
+                "jobId", "101",
+                "stepId", STEP_UUID
+        );
+        CallerClassification caller = TerrakubeCallerClassifier.classify(claims, OIDC_ISSUER, client);
+
+        // Fallback getStepById when Job.included omits steps
+        stubJobAndStep("waitingApproval", WS_ID, "waitingApproval", false);
+        assertTrue(TerrakubeCallerClassifier.isAuthorizedForOrganization(caller, ORG_ID, "", client));
+
+        stubJobAndStep("approved", WS_ID, "approved", true);
+        assertTrue(TerrakubeCallerClassifier.isAuthorizedForOrganization(caller, ORG_ID, "", client));
+
+        stubJobAndStep("queue", WS_ID, "queue", true);
+        assertTrue(TerrakubeCallerClassifier.isAuthorizedForOrganization(caller, ORG_ID, "", client));
+
+        // Terminal Job must be denied even if step still reads running
+        for (String terminalJobStatus : List.of("cancelled", "failed", "completed", "rejected")) {
+            stubJobAndStep(terminalJobStatus, WS_ID, "running", true);
+            assertFalse(
+                    TerrakubeCallerClassifier.isAuthorizedForOrganization(caller, ORG_ID, "", client),
+                    "Expected terminal job status '" + terminalJobStatus + "' to be rejected"
+            );
+        }
+
+        // Same-org job belonging to a different workspace must be denied
+        stubJobAndStep("running", OTHER_WS_ID, "running", true);
+        assertFalse(TerrakubeCallerClassifier.isAuthorizedForOrganization(caller, ORG_ID, "", client));
+    }
+
+    @Test
+    void workspaceExecutor_strictJtiFallback_rejectsLooseOrMismatchedFormats() {
+        stubJobAndStep("running", WS_ID, "running", true);
+
+        Map<String, Object> missingJobAndStepWithValidJti = Map.of(
+                "iss", "TerrakubeInternal",
+                "sub", "TerrakubeInternal (EXECUTOR)",
+                "organizationId", ORG_ID,
+                "workspaceId", WS_ID,
+                "jti", "101-" + STEP_UUID
+        );
+        CallerClassification validFromJti = TerrakubeCallerClassifier.classify(
+                missingJobAndStepWithValidJti, OIDC_ISSUER, client);
+        assertEquals(CallerType.WORKSPACE_EXECUTOR, validFromJti.getCallerType());
+        assertEquals("101", validFromJti.getJobId());
+        assertEquals(STEP_UUID, validFromJti.getStepId());
+        assertTrue(TerrakubeCallerClassifier.isAuthorizedForOrganization(validFromJti, ORG_ID, "", client));
+
+        for (Map<String, Object> badClaims : List.<Map<String, Object>>of(
+                Map.<String, Object>of(
+                        "iss", "TerrakubeInternal",
+                        "sub", "TerrakubeInternal (EXECUTOR)",
+                        "organizationId", ORG_ID,
+                        "workspaceId", WS_ID,
+                        "jobId", "101",
+                        "jti", "999-" + STEP_UUID
+                ),
+                Map.<String, Object>of(
+                        "iss", "TerrakubeInternal",
+                        "sub", "TerrakubeInternal (EXECUTOR)",
+                        "organizationId", ORG_ID,
+                        "workspaceId", WS_ID,
+                        "jobId", "101",
+                        "jti", "101-not-a-uuid"
+                ),
+                Map.<String, Object>of(
+                        "iss", "TerrakubeInternal",
+                        "sub", "TerrakubeInternal (EXECUTOR)",
+                        "organizationId", ORG_ID,
+                        "workspaceId", WS_ID,
+                        "jti", "foo-bar"
+                )
+        )) {
+            CallerClassification bad = TerrakubeCallerClassifier.classify(badClaims, OIDC_ISSUER, client);
+            assertEquals(CallerType.UNKNOWN_INTERNAL, bad.getCallerType());
+            assertFalse(TerrakubeCallerClassifier.isAuthorizedForOrganization(bad, ORG_ID, "", client));
+        }
     }
 
     // ──────────────────────────────── Federated OIDC Tokens ────────────────────────────────
@@ -386,11 +478,23 @@ class TerrakubeCallerClassifierTest {
     // ──────────────────────────────── Helpers ────────────────────────────────
 
     private void stubStepStatus(String status) {
-        stubFor(get(urlPathEqualTo("/api/v1/organization/" + ORG_ID + "/job/101/step/" + STEP_UUID))
+        stubJobAndStep("running", WS_ID, status, true);
+    }
+
+    private void stubJobAndStep(String jobStatus, String workspaceId, String stepStatus, boolean includeStepInJob) {
+        String stepJson = "{\"id\":\"" + STEP_UUID + "\",\"type\":\"step\","
+                + "\"attributes\":{\"stepNumber\":1,\"status\":\"" + stepStatus + "\"}}";
+        String includedJson = includeStepInJob ? "[" + stepJson + "]" : "[]";
+        stubFor(get(urlPathEqualTo("/api/v1/organization/" + ORG_ID + "/job/101"))
+                .withQueryParam("include", equalTo("step"))
                 .willReturn(okJson(
-                        "{\"data\":{\"id\":\"" + STEP_UUID + "\",\"type\":\"step\","
-                        + "\"attributes\":{\"stepNumber\":\"1\",\"status\":\"" + status + "\"}}}"
+                        "{\"data\":{\"id\":\"101\",\"type\":\"job\","
+                        + "\"attributes\":{\"status\":\"" + jobStatus + "\"},"
+                        + "\"relationships\":{\"workspace\":{\"data\":{\"id\":\"" + workspaceId + "\",\"type\":\"workspace\"}}}},"
+                        + "\"included\":" + includedJson + "}"
                 )));
+        stubFor(get(urlPathEqualTo("/api/v1/organization/" + ORG_ID + "/job/101/step/" + STEP_UUID))
+                .willReturn(okJson("{\"data\":" + stepJson + "}")));
     }
 
     private void stubGitHubFederated(String federatedName, String claimKey, String claimValue) {
