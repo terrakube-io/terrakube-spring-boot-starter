@@ -4,6 +4,7 @@ import io.terrakube.client.TerrakubeClient;
 import io.terrakube.client.model.federated.Federated;
 import io.terrakube.client.model.federated.claim.FederatedClaim;
 import io.terrakube.client.model.generic.Resource;
+import io.terrakube.client.model.organization.job.Job;
 import io.terrakube.client.model.organization.job.step.Step;
 import io.terrakube.client.model.organization.team.Team;
 import io.terrakube.client.model.organization.workspace.Workspace;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * Classifies incoming JWT callers and evaluates fail-closed organization authorization.
@@ -34,13 +36,15 @@ public final class TerrakubeCallerClassifier {
     public static final String SUBJECT_EXECUTOR = "TerrakubeInternal (EXECUTOR)";
     public static final String SUBJECT_REGISTRY = "TerrakubeInternal (REGISTRY)";
 
-    private static final Set<String> ACTIVE_STEP_STATUSES = Set.of(
+    public static final Set<String> ACTIVE_STEP_STATUSES = Set.of(
             "running",
             "queue",
             "pending",
             "waitingApproval",
             "approved"
     );
+
+    private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$");
 
     private TerrakubeCallerClassifier() {
     }
@@ -149,10 +153,10 @@ public final class TerrakubeCallerClassifier {
         boolean hasScopeKey = tokenClaims.containsKey("workspaceId") || tokenClaims.containsKey("organizationId");
         if (hasScopeKey) {
             boolean validRunner = SUBJECT_EXECUTOR.equals(subject)
-                    && !isBlank(workspaceId)
-                    && !isBlank(organizationId)
-                    && !isBlank(jobId)
-                    && !isBlank(stepId);
+                    && isValidUuid(workspaceId)
+                    && isValidUuid(organizationId)
+                    && isValidIdentifier(jobId)
+                    && isValidUuid(stepId);
             return CallerClassification.builder()
                     .callerType(validRunner ? CallerType.WORKSPACE_EXECUTOR : CallerType.UNKNOWN_INTERNAL)
                     .issuer(issuer)
@@ -311,31 +315,69 @@ public final class TerrakubeCallerClassifier {
             TerrakubeClient client) {
         if (client == null
                 || isBlank(targetOrganizationId)
-                || isBlank(caller.getOrganizationId())
+                || !isValidUuid(caller.getOrganizationId())
                 || !caller.getOrganizationId().equalsIgnoreCase(targetOrganizationId)
-                || isBlank(caller.getJobId())
+                || !isValidUuid(caller.getWorkspaceId())
+                || !isValidIdentifier(caller.getJobId())
                 || !isValidUuid(caller.getStepId())) {
             return false;
         }
 
         try {
-            Response<Step> stepResponse = client.getStepById(
+            ResponseWithInclude<Job, Step> jobResponse = client.getJobById(
                     targetOrganizationId,
-                    caller.getJobId(),
-                    caller.getStepId()
+                    caller.getJobId()
             );
-            if (stepResponse == null
-                    || stepResponse.getData() == null
-                    || stepResponse.getData().getAttributes() == null) {
+            if (jobResponse == null
+                    || jobResponse.getData() == null
+                    || jobResponse.getData().getAttributes() == null) {
                 return false;
             }
-            String status = stepResponse.getData().getAttributes().getStatus();
-            return !isBlank(status) && ACTIVE_STEP_STATUSES.contains(status);
+            Job job = jobResponse.getData();
+            String jobStatus = job.getAttributes().getStatus();
+            if (isBlank(jobStatus) || !ACTIVE_STEP_STATUSES.contains(jobStatus)) {
+                return false;
+            }
+
+            if (job.getRelationships() == null
+                    || job.getRelationships().getWorkspace() == null
+                    || job.getRelationships().getWorkspace().getData() == null
+                    || !caller.getWorkspaceId().equalsIgnoreCase(
+                            job.getRelationships().getWorkspace().getData().getId())) {
+                return false;
+            }
+
+            String stepStatus = findStepStatus(jobResponse.getIncluded(), caller.getStepId());
+            if (stepStatus == null) {
+                Response<Step> stepResponse = client.getStepById(
+                        targetOrganizationId,
+                        caller.getJobId(),
+                        caller.getStepId()
+                );
+                if (stepResponse != null
+                        && stepResponse.getData() != null
+                        && stepResponse.getData().getAttributes() != null) {
+                    stepStatus = stepResponse.getData().getAttributes().getStatus();
+                }
+            }
+            return !isBlank(stepStatus) && ACTIVE_STEP_STATUSES.contains(stepStatus);
         } catch (Exception ex) {
-            log.warn("Failed to verify runner step {} for job {} in org {}: {}",
-                    caller.getStepId(), caller.getJobId(), targetOrganizationId, ex.getMessage());
+            log.warn("Failed to verify runner job {} / step {} in org {}: {}",
+                    caller.getJobId(), caller.getStepId(), targetOrganizationId, ex.getMessage());
             return false;
         }
+    }
+
+    private static String findStepStatus(List<Step> includedSteps, String stepId) {
+        if (includedSteps == null || includedSteps.isEmpty()) {
+            return null;
+        }
+        for (Step step : includedSteps) {
+            if (step != null && stepId.equalsIgnoreCase(step.getId()) && step.getAttributes() != null) {
+                return step.getAttributes().getStatus();
+            }
+        }
+        return null;
     }
 
     private static boolean isAuthorizedFederated(
@@ -456,18 +498,22 @@ public final class TerrakubeCallerClassifier {
             return new String[]{resolvedJobId, resolvedStepId};
         }
 
-        if (!isBlank(resolvedJobId) && isBlank(resolvedStepId) && jti.startsWith(resolvedJobId + "-")) {
-            String suffix = jti.substring(resolvedJobId.length() + 1).trim();
-            if (!suffix.isEmpty()) {
-                resolvedStepId = suffix;
+        if (!isBlank(resolvedJobId) && isBlank(resolvedStepId)) {
+            if (jti.startsWith(resolvedJobId + "-")) {
+                String suffix = jti.substring(resolvedJobId.length() + 1).trim();
+                if (isValidUuid(suffix)) {
+                    resolvedStepId = suffix;
+                }
             }
             return new String[]{resolvedJobId, resolvedStepId};
         }
 
-        if (isBlank(resolvedJobId) && !isBlank(resolvedStepId) && jti.endsWith("-" + resolvedStepId)) {
-            String prefix = jti.substring(0, jti.length() - resolvedStepId.length() - 1).trim();
-            if (!prefix.isEmpty()) {
-                resolvedJobId = prefix;
+        if (isBlank(resolvedJobId) && !isBlank(resolvedStepId)) {
+            if (isValidUuid(resolvedStepId) && jti.endsWith("-" + resolvedStepId)) {
+                String prefix = jti.substring(0, jti.length() - resolvedStepId.length() - 1).trim();
+                if (isValidIdentifier(prefix)) {
+                    resolvedJobId = prefix;
+                }
             }
             return new String[]{resolvedJobId, resolvedStepId};
         }
@@ -477,19 +523,9 @@ public final class TerrakubeCallerClassifier {
             if (jti.length() > 37 && jti.charAt(jti.length() - 37) == '-') {
                 String candidateUuid = jti.substring(jti.length() - 36);
                 String candidateJobId = jti.substring(0, jti.length() - 37).trim();
-                if (!candidateJobId.isEmpty() && isValidUuid(candidateUuid)) {
+                if (isValidIdentifier(candidateJobId) && isValidUuid(candidateUuid)) {
                     return new String[]{candidateJobId, candidateUuid};
                 }
-            }
-            int dashIdx = jti.indexOf('-');
-            if (dashIdx > 0 && dashIdx < jti.length() - 1) {
-                String prefix = jti.substring(0, dashIdx).trim();
-                String suffix = jti.substring(dashIdx + 1).trim();
-                if (!prefix.isEmpty() && !suffix.isEmpty()) {
-                    return new String[]{prefix, suffix};
-                }
-            } else {
-                resolvedJobId = jti;
             }
         }
         return new String[]{resolvedJobId, resolvedStepId};
@@ -593,6 +629,10 @@ public final class TerrakubeCallerClassifier {
         } catch (IllegalArgumentException ex) {
             return false;
         }
+    }
+
+    private static boolean isValidIdentifier(String value) {
+        return !isBlank(value) && IDENTIFIER_PATTERN.matcher(value.trim()).matches();
     }
 
     private static boolean isBlank(String value) {
